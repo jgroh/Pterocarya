@@ -1,0 +1,21 @@
+name: newick_utils
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - _libgcc_mutex=0.1=conda_forge
+  - _openmp_mutex=4.5=2_gnu
+  - libgcc=14.2.0=h77fa898_1
+  - libgcc-ng=14.2.0=h69a702a_1
+  - libgomp=14.2.0=h77fa898_1
+  - libiconv=1.17=hd590300_2
+  - liblzma=5.6.3=hb9d3cd8_1
+  - liblzma-devel=5.6.3=hb9d3cd8_1
+  - libxml2=2.13.5=h064dc61_0
+  - libzlib=1.3.1=hb9d3cd8_2
+  - newick_utils=1.6=h0a39f1a_8
+  - xz=5.6.3=hbcc6ac9_1
+  - xz-gpl-tools=5.6.3=hbcc6ac9_1
+  - xz-tools=5.6.3=hb9d3cd8_1
+prefix: /home/jgroh/.conda/envs/newick_utils

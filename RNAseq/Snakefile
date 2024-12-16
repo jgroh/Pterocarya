@@ -1,0 +1,57 @@
+import pandas as pd
+
+SAMPLES = ['DV_136', 'DV_138_F','DV_138_M', 'DV_145', 'DV_146.5', 'DV_149_F','DV_149_M', 'DV_150', 'PSTE_UCD1', 'PSTE_WS_11.01', 'PSTE_WS_2.08', 'PSTE_WS_2.10']
+
+rule all:
+  input:
+    expand("quants/{sample}_quant/quant.sf", sample = SAMPLES),
+
+rule salmon_index:
+  input:
+    "P.ste_hap2_cds.fasta"
+  output:
+    "P.ste_hap2_cds_index/sa.bin"
+  params:
+    index="P.ste_hap2_cds_index"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/salmon.yaml"
+  shell:
+    "salmon index -t {input} -i {params.index}" 
+
+rule salmon:
+  input:
+    r1="trimmed_reads/{sample}-trimmed-pair1.fastq.gz",
+    r2="trimmed_reads/{sample}-trimmed-pair2.fastq.gz",
+    transcriptome="P.ste_hap2_cds.fasta",
+    index="P.ste_hap2_cds_index/sa.bin"
+  output:
+    "quants/{sample}_quant/quant.sf"
+  params:
+    index="P.ste_hap2_cds_index"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/salmon.yaml"
+  shell:
+    """
+    salmon quant -i {params.index} \
+        -l A -1 {input.r1} -2 {input.r2} \
+        -p 8 --validateMappings \
+        --gcBias \
+        -o quants/{wildcards.sample}_quant
+    """
+
+rule skewer:
+  input:
+    r1="FASTQ/{sample}_R1.fastq.gz",
+    r2="FASTQ/{sample}_R2.fastq.gz",
+  output:
+    r1="trimmed_reads/{sample}-trimmed-pair1.fastq.gz",
+    r2="trimmed_reads/{sample}-trimmed-pair2.fastq.gz",
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/skewer.yaml"
+  threads:
+    20
+  shell:
+    """
+    skewer -m any --threads {threads} --compress --output trimmed_reads/{wildcards.sample} {input.r1} {input.r2}
+    """
+

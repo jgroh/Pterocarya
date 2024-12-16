@@ -1,0 +1,262 @@
+import pandas as pd
+import re
+
+SP=['R.chiliantha', 'E.roxburghiana', 'P.strobilaceae', 'C.illinoinensis', 'C.cathayensis', 'C.paliurus', 'J.signillata', 'J.regia', 'J.nigra', 'J.microcarpa', 'J.californica', 'J.hindsii', 'J.mandshurica', 'J.cinerea', 'P.stenoptera', 'P.macroptera', 'P.rhoifolia', 'P.fraxinifolia']
+
+T1TBL=pd.read_table("/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/t1.names.txt", header = None, names = ['t1'])
+T1NAMES=T1TBL['t1'].tolist()
+
+CILAKT1TBL=pd.read_table("/home/jgroh/heterodichogamy/Carya_genome_assemblies/Lakota_v1_primary_transcript_names.txt", header = None, names =['t1'])
+CILAKT1NAMES=CILAKT1TBL['t1'].tolist()
+
+# define this table after OrthoFinder runs
+SCO_TBL=pd.read_table("transcriptomes/OrthoFinder/Results_Dec15/Orthogroups/Orthogroups_SingleCopyOrthologues.txt", header = None, names = ['OG'])
+SCO=SCO_TBL['OG'].tolist()
+
+SAMTOOLS='/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml'
+
+rule all:
+  input:
+    "Juglandaceae_astral_18sp.tree",
+#    "astral_genetrees_bs10.nw"
+#    "astral_genetrees.nw",
+#    expand("sco_gene_trees/{OG}/{OG}.treefile", OG=SCO),
+#    expand("P.rhoifolia_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+#    expand("C.ovata_pseudohaploid/individual_genes/{gene}.fasta", gene=CILAKT1NAMES),
+#    "longest_transcripts/OrthoFinder/Results_Dec13/Orthogroups/Orthogroups_SingleCopyOrthologues.txt",
+#    "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jnigra/BNU/Jnig_liftoff.gff",
+#    "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jmandshurica/NFU/Jman_NFU_liftoff.gff",
+
+rule OrthoFinder:
+  input:
+    expand("P.rhoifolia_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "longest_transcripts/OrthoFinder/Results_Dec13/Orthogroups/Orthogroups_SingleCopyOrthologues.txt"
+  conda:
+    "/home/jgroh/Pterocarya/conda_envs/orthofinder.yaml"
+  threads:
+    256
+  resources:
+    mem_mb=60000,
+    runtime=12*60
+  shell:
+    "orthofinder -og -d -t {threads} -a {threads} -f longest_transcripts"
+
+
+
+# first filtered vcf with just rhoifolia individual
+# module load seqtk for this rule
+rule rhoifolia_extract:
+  input:
+    bcf="/home/jgroh/Pterocarya/calls/PSTE_UCD1470_HAP1/PRHO_SO6_fltd.bcf",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.rhoifolia_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_coords &&
+    mkdir -p tmp_fasta &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' >> tmp_coords/{wildcards.gene}_tmp.txt &&
+    echo ">Prho_{wildcards.gene}" >> tmp_fasta/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PRHO_SO6_S64 {input.bcf} >> tmp_fasta/{wildcards.gene}.fasta
+    done < tmp_coords/{wildcards.gene}_tmp.txt &&
+
+    # edit temporary fasta to remove unecessary txt
+    sed -i '/^>Chr/d' tmp_fasta/{wildcards.gene}.fasta &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_fasta/{wildcards.gene}.fasta > {output}
+    else 
+      mv tmp_fasta/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_coords/{wildcards.gene}_tmp.txt
+    #rm -f tmp_fasta/{wildcards.gene}.fasta
+    """
+
+rule rhoifolia_concat:
+  input:
+    expand("P.rhoifolia_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.rhoifolia_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+
+# first filtered vcf with just rhoifolia individual
+# module load seqtk for this rule
+rule ovata_extract:
+  input:
+    vcf="/home/jgroh/heterodichogamy/Carya_spp/calls/Carya_spp_allsites_filtered_Lakota_v1.vcf.gz",
+    fa="/home/jgroh/heterodichogamy/Carya_genome_assemblies/Lakota_v1.fna",
+    gff="/home/jgroh/heterodichogamy/Carya_genome_assemblies/Lakota_v1.gff"
+  output:
+    "C.ovata_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_coords_ovata &&
+    mkdir -p tmp_fasta_ovata &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' >> tmp_coords_ovata/{wildcards.gene}_tmp.txt &&
+    echo ">Cova_{wildcards.gene}" >> tmp_fasta_ovata/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s COVA_UCB91 {input.vcf} >> tmp_fasta_ovata/{wildcards.gene}.fasta
+    done < tmp_coords_ovata/{wildcards.gene}_tmp.txt &&
+
+    # edit temporary fasta to remove unecessary txt
+    sed -i '/^>Chr/d' tmp_fasta_ovata/{wildcards.gene}.fasta &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_fasta_ovata/{wildcards.gene}.fasta > {output}
+    else 
+      mv tmp_fasta_ovata/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_coords_ovata/{wildcards.gene}_tmp.txt
+    rm -f tmp_fasta_ovata/{wildcards.gene}.fasta
+    """
+  
+
+rule align_single_copy_orthologs:
+  input:
+    'transcriptomes/OrthoFinder/Results_Dec15/Single_Copy_Orthologue_Sequences/{OG}.fa'
+  output:
+    'transcriptomes/OrthoFinder/Results_Dec15/Aligned_SCOs/{OG}.fa'
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/iqtree.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=60
+  shell:
+    "muscle -align {input} -output {output}"
+
+rule infer_gene_tree:
+  input:
+    "transcriptomes/OrthoFinder/Results_Dec15/Aligned_SCOs/{OG}.fa"
+  output:
+    "sco_gene_trees/{OG}/{OG}.treefile"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/iqtree.yaml"
+  resources:
+    mem_mb=20000,
+    runtime=60
+  shell:
+    "iqtree -s {input} -B 1000 -m GTR+I+G --prefix sco_gene_trees/{wildcards.OG}/{wildcards.OG}"
+
+
+rule liftoff_regia_to_mandshurica:
+  input:
+    gff='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jregia/Chandler/GCF_001411555.2_Walnut_2.0_genomic.gff',
+    ref='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jregia/Chandler/GCF_001411555.2_Walnut_2.0_genomic.fna',
+    target='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jmandshurica/NFU/GWHBEUN00000000.genome.fasta'
+  output:
+    "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jmandshurica/NFU/Jman_NFU_liftoff.gff"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/liftoff.yaml"
+  resources:
+    mem_mb=20000,
+    runtime=60
+  shell:
+    """
+    liftoff -g {input.gff} \
+        -dir "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jmandshurica/NFU/" \
+        -o {output} \
+        -u "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jmandshurica/NFU/unmapped.txt" \
+        {input.target} {input.ref}
+    """
+
+rule liftoff_regia_to_nigra:
+  input:
+    gff='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jregia/Chandler/GCF_001411555.2_Walnut_2.0_genomic.gff',
+    ref='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jregia/Chandler/GCF_001411555.2_Walnut_2.0_genomic.fna',
+    target='/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jnigra/BNU/JNI.pseudoChr.fasta'
+  output:
+    "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jnigra/BNU/Jnig_liftoff.gff"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/liftoff.yaml"
+  resources:
+    mem_mb=20000,
+    runtime=60
+  shell:
+    """
+    liftoff -g {input.gff} \
+        -dir "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jnigra/BNU/" \
+        -o {output} \
+        -u "/home/jgroh/heterodichogamy/Juglans_genome_assemblies/Jnigra/BNU/unmapped.txt" \
+        {input.target} {input.ref}
+    """
+
+
+rule cat_genetrees:
+  input:
+    expand("sco_gene_trees/{OG}/{OG}.treefile", OG=SCO)
+  output:
+    "astral_genetrees_raw.nw"
+  shell:
+    """
+    find sco_gene_trees/ -name "*.treefile" | xargs cat > {output}
+    """
+
+
+rule contract_low_bs:
+  input:
+    "astral_genetrees_raw.nw"
+  output:
+    "astral_genetrees_contracted.nw"
+  conda:
+    "/home/jgroh/Pterocarya/conda_envs/newick_utils.yaml"
+  shell:
+    "nw_ed {input} 'i & b<=10' o > {output}"
+
+    
+
+rule astral4:
+  input:
+    "astral_genetrees_contracted.nw"
+  output:
+    "Juglandaceae_astral_18sp.tree"
+  threads:
+    72
+  resources:
+    mem_mb=50000,
+    runtime=140
+  shell:
+    """
+    /home/jgroh/ASTER-Linux/bin/astral4 \
+        -a gene2species.txt \
+        -t {threads} \
+        -o {output} \
+        -i {input} 2> astral.log
+    """
+
