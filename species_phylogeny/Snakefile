@@ -10,14 +10,21 @@ CILAKT1TBL=pd.read_table("/home/jgroh/heterodichogamy/Carya_genome_assemblies/La
 CILAKT1NAMES=CILAKT1TBL['t1'].tolist()
 
 # define this table after OrthoFinder runs
-SCO_TBL=pd.read_table("transcriptomes/OrthoFinder/Results_Dec15/Orthogroups/Orthogroups_SingleCopyOrthologues.txt", header = None, names = ['OG'])
+SCO_TBL=pd.read_table("transcriptomes/OrthoFinder/Results_Jan06/Orthogroups/Orthogroups_SingleCopyOrthologues.txt", header = None, names = ['OG'])
 SCO=SCO_TBL['OG'].tolist()
 
-SAMTOOLS='/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml'
+SAMTOOLS='/home/jgroh/Pterocarya/conda_envs/samtools.yaml'
 
 rule all:
   input:
-    "Juglandaceae_astral_18sp.tree",
+    "ML_Tree/Juglandaceae_ML_20sp.treefile",
+    "concatenated_SCO_alignments.fasta",
+    expand('transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs_renamed_for_concat/{OG}.fa', OG=SCO),
+#    "transcriptomes/OrthoFinder/Results_Jan04/Orthogroups/Orthogroups_SingleCopyOrthologues.txt",
+#    "P.hupehensis_pseudohaploid/P.hupehensis.fasta",
+    expand("{sample}_pseudohaploid/{sample}.fasta", sample = ['P.rhoifolia_S01', 'P.fraxinifolia_14.2', 'P.fraxinifolia_18.2', 'P.macroptera_SO4']),
+#    "transcriptomes/C.ovata.fasta",
+    "Juglandaceae_astral_20sp.tree",
 #    "astral_genetrees_bs10.nw"
 #    "astral_genetrees.nw",
 #    expand("sco_gene_trees/{OG}/{OG}.treefile", OG=SCO),
@@ -29,9 +36,8 @@ rule all:
 
 rule OrthoFinder:
   input:
-    expand("P.rhoifolia_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
   output:
-    "longest_transcripts/OrthoFinder/Results_Dec13/Orthogroups/Orthogroups_SingleCopyOrthologues.txt"
+    "transcriptomes/OrthoFinder/Results_Jan04/Orthogroups/Orthogroups_SingleCopyOrthologues.txt"
   conda:
     "/home/jgroh/Pterocarya/conda_envs/orthofinder.yaml"
   threads:
@@ -40,7 +46,7 @@ rule OrthoFinder:
     mem_mb=60000,
     runtime=12*60
   shell:
-    "orthofinder -og -d -t {threads} -a {threads} -f longest_transcripts"
+    "orthofinder -d -t {threads} -a {threads} -f transcriptomes"
 
 
 
@@ -67,28 +73,25 @@ rule rhoifolia_extract:
     STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
 
     #  extract coordinates of gene
-    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' >> tmp_coords/{wildcards.gene}_tmp.txt &&
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_coords/{wildcards.gene}_tmp.txt &&
     echo ">Prho_{wildcards.gene}" >> tmp_fasta/{wildcards.gene}.fasta &&
 
     # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
     while read -r line; do
       samtools faidx {input.fa} $line | 
-          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PRHO_SO6_S64 {input.bcf} >> tmp_fasta/{wildcards.gene}.fasta
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PRHO_SO6_S64 {input.bcf} | sed '/:/d' >> tmp_fasta/{wildcards.gene}.fasta
     done < tmp_coords/{wildcards.gene}_tmp.txt &&
-
-    # edit temporary fasta to remove unecessary txt
-    sed -i '/^>Chr/d' tmp_fasta/{wildcards.gene}.fasta &&
 
     # reverse complement, depending on strand
     if [ "$STRAND" = "-" ]; then
-      seqtk seq -r tmp_fasta/{wildcards.gene}.fasta > {output}
+      seqtk seq -r tmp_fasta/{wildcards.gene}.fasta > {output} &&
+      rm tmp_fasta/{wildcards.gene}.fasta
     else 
       mv tmp_fasta/{wildcards.gene}.fasta {output}
     fi &&
 
     # remove temporary files
     rm tmp_coords/{wildcards.gene}_tmp.txt
-    #rm -f tmp_fasta/{wildcards.gene}.fasta
     """
 
 rule rhoifolia_concat:
@@ -100,7 +103,275 @@ rule rhoifolia_concat:
     "cat {input} > {output}"
 
 
-# first filtered vcf with just rhoifolia individual
+rule rhoifolia_S01_extract:
+  input:
+    vcf="/home/jgroh/Pterocarya/calls/PSTE_UCD1470_HAP1/biallelic_SNPs_filtered.vcf.gz",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.rhoifolia_S01_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_coords_PrhoS01 &&
+    mkdir -p tmp_fasta_PrhoS01 &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_coords_PrhoS01/{wildcards.gene}_tmp.txt &&
+    echo ">PrhoS01_{wildcards.gene}" >> tmp_fasta_PrhoS01/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PRHO_SO1_S61 {input.vcf} | sed '/:/d' >> tmp_fasta/{wildcards.gene}.fasta
+    done < tmp_coords_PrhoS01/{wildcards.gene}_tmp.txt &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_fasta_PrhoS01/{wildcards.gene}.fasta > {output} &&
+      rm tmp_fasta_PrhoS01/{wildcards.gene}.fasta
+    else 
+      mv tmp_fasta_PrhoS01/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_coords_PrhoS01/{wildcards.gene}_tmp.txt
+    """
+
+
+rule rhoifoliaS01_concat:
+  input:
+    expand("P.rhoifolia_S01_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.rhoifolia_S01_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+rule resolve_ambig_sites:
+  input:
+    "{species}_pseudohaploid/ambig.fasta"
+  output:
+    "{species}_pseudohaploid/{species}.fasta"
+  shell:
+    "python /home/jgroh/Pterocarya/scripts/resolve_het_sites.py {input} > {output}"
+
+rule hupehensis_extract:
+  input:
+    bcf="/home/jgroh/Pterocarya/Geng_etal_2024_data/calls/hap1/allsites_filtered.bcf",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.hupehensis_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_hupehensis_coords &&
+    mkdir -p tmp_hupehensis_fasta &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_hupehensis_coords/{wildcards.gene}_tmp.txt &&
+    echo ">Phup_{wildcards.gene}" >> tmp_hupehensis_fasta/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s SRR25637535 {input.bcf} | sed '/:/d' >> tmp_hupehensis_fasta/{wildcards.gene}.fasta
+    done < tmp_hupehensis_coords/{wildcards.gene}_tmp.txt &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_hupehensis_fasta/{wildcards.gene}.fasta > {output} &&
+      rm tmp_hupehensis_fasta/{wildcards.gene}.fasta
+    else 
+      mv tmp_hupehensis_fasta/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_hupehensis_coords/{wildcards.gene}_tmp.txt
+    """
+
+rule hupehensis_concat:
+  input:
+    expand("P.hupehensis_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.hupehensis_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+rule frax14_2_extract:
+  input:
+    vcf="/home/jgroh/Pterocarya/calls/PSTE_UCD1470_HAP1/biallelic_SNPs_filtered.vcf.gz",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.fraxinifolia_14.2_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_frax14.2_coords &&
+    mkdir -p tmp_frax14.2_fasta &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_frax14.2_coords/{wildcards.gene}_tmp.txt &&
+    echo ">Pfra14.2_{wildcards.gene}" >> tmp_frax14.2_fasta/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PFRA_W14_2 {input.vcf} | sed '/:/d' >> tmp_frax14.2_fasta/{wildcards.gene}.fasta
+    done < tmp_frax14.2_coords/{wildcards.gene}_tmp.txt &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_frax14.2_fasta/{wildcards.gene}.fasta > {output} &&
+      rm tmp_frax14.2_fasta/{wildcards.gene}.fasta
+    else 
+      mv tmp_frax14.2_fasta/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_frax14.2_coords/{wildcards.gene}_tmp.txt
+    """
+
+rule frax14_2_concat:
+  input:
+    expand("P.fraxinifolia_14.2_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.fraxinifolia_14.2_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+rule frax18_2_extract:
+  input:
+    vcf="/home/jgroh/Pterocarya/calls/PSTE_UCD1470_HAP1/biallelic_SNPs_filtered.vcf.gz",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.fraxinifolia_18.2_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_frax18.2_coords &&
+    mkdir -p tmp_frax18.2_fasta &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_frax18.2_coords/{wildcards.gene}_tmp.txt &&
+    echo ">Pfra18.2_{wildcards.gene}" >> tmp_frax18.2_fasta/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PFRA_W18_2 {input.vcf} | sed '/:/d' >> tmp_frax18.2_fasta/{wildcards.gene}.fasta
+    done < tmp_frax18.2_coords/{wildcards.gene}_tmp.txt &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_frax18.2_fasta/{wildcards.gene}.fasta > {output} &&
+      rm tmp_frax18.2_fasta/{wildcards.gene}.fasta
+    else 
+      mv tmp_frax18.2_fasta/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_frax18.2_coords/{wildcards.gene}_tmp.txt
+    """
+
+rule frax18_2_concat:
+  input:
+    expand("P.fraxinifolia_18.2_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.fraxinifolia_18.2_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+
+rule macS04_extract:
+  input:
+    vcf="/home/jgroh/Pterocarya/calls/PSTE_UCD1470_HAP1/biallelic_SNPs_filtered.vcf.gz",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta",
+    gff="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3",
+  output:
+    "P.macroptera_SO4_pseudohaploid/individual_genes/{gene}.fasta"
+  params:
+    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+  conda:
+    SAMTOOLS
+  shell:
+    """
+    # directory to store temporary gene coordinates
+    mkdir -p tmp_macSO4_coords &&
+    mkdir -p tmp_macSO4_fasta &&
+
+    # define strand of gene in reference 
+    STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
+
+    #  extract coordinates of gene
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_macSO4_coords/{wildcards.gene}_tmp.txt &&
+    echo ">PmacSO4_{wildcards.gene}" >> tmp_macSO4_fasta/{wildcards.gene}.fasta &&
+
+    # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
+    while read -r line; do
+      samtools faidx {input.fa} $line | 
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s PMAC_SO4_S63 {input.vcf} | sed '/:/d' >> tmp_macS04_fasta/{wildcards.gene}.fasta
+    done < tmp_macSO4_coords/{wildcards.gene}_tmp.txt &&
+
+    # reverse complement, depending on strand
+    if [ "$STRAND" = "-" ]; then
+      seqtk seq -r tmp_macSO4_fasta/{wildcards.gene}.fasta > {output} &&
+      rm tmp_macSO4_fasta/{wildcards.gene}.fasta
+    else 
+      mv tmp_macSO4_fasta/{wildcards.gene}.fasta {output}
+    fi &&
+
+    # remove temporary files
+    rm tmp_macSO4_coords/{wildcards.gene}_tmp.txt
+    """
+
+rule macSO4_concat:
+  input:
+    expand("P.macroptera_SO4_pseudohaploid/individual_genes/{gene}.fasta", gene = T1NAMES),
+  output:
+    "P.macroptera_SO4_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+rule C_ovata_concat:
+  input:
+    expand("C.ovata_pseudohaploid/individual_genes/{gene}.fasta", gene = CILAKT1NAMES),
+  output:
+    "C.ovata_pseudohaploid/ambig.fasta"
+  shell:
+    "cat {input} > {output}"
+
+
 # module load seqtk for this rule
 rule ovata_extract:
   input:
@@ -110,7 +381,8 @@ rule ovata_extract:
   output:
     "C.ovata_pseudohaploid/individual_genes/{gene}.fasta"
   params:
-    pattern=lambda wildcards: re.escape(wildcards.gene)  # Escape the "." character in the transcript name
+    pattern=lambda wildcards: f'"{re.escape(wildcards.gene)};"'
+    ## Escape the "." character in the transcript name. Also, for some genes in the pecan annotation there are >10 transcripts, so append ; so that search only includes t1 rather than e.g t10, t11, etc
   conda:
     SAMTOOLS
   shell:
@@ -123,47 +395,45 @@ rule ovata_extract:
     STRAND=$(grep {params.pattern} {input.gff} | awk '$3=="CDS" {{print $7}}' | head -n1) &&
 
     #  extract coordinates of gene
-    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' >> tmp_coords_ovata/{wildcards.gene}_tmp.txt &&
+    grep {params.pattern} {input.gff} | awk '$3 == "CDS" {{print $1 ":" $4 "-" $5}}' | sort >> tmp_coords_ovata/{wildcards.gene}_tmp.txt &&
     echo ">Cova_{wildcards.gene}" >> tmp_fasta_ovata/{wildcards.gene}.fasta &&
 
     # loop over coordinates of each exon, extract consensus sequence and output missing sites as N
     while read -r line; do
       samtools faidx {input.fa} $line | 
-          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s COVA_UCB91 {input.vcf} >> tmp_fasta_ovata/{wildcards.gene}.fasta
+          bcftools consensus -e 'FMT/GT=="./."' -a "N" -M "N" --mark-del "N" -s COVA_UCB91 {input.vcf} | sed '/:/d' >> tmp_fasta_ovata/{wildcards.gene}.fasta
     done < tmp_coords_ovata/{wildcards.gene}_tmp.txt &&
-
-    # edit temporary fasta to remove unecessary txt
-    sed -i '/^>Chr/d' tmp_fasta_ovata/{wildcards.gene}.fasta &&
 
     # reverse complement, depending on strand
     if [ "$STRAND" = "-" ]; then
-      seqtk seq -r tmp_fasta_ovata/{wildcards.gene}.fasta > {output}
+      seqtk seq -r tmp_fasta_ovata/{wildcards.gene}.fasta > {output} &&
+      rm tmp_fasta_ovata/{wildcards.gene}.fasta
     else 
       mv tmp_fasta_ovata/{wildcards.gene}.fasta {output}
     fi &&
 
+
     # remove temporary files
     rm tmp_coords_ovata/{wildcards.gene}_tmp.txt
-    rm -f tmp_fasta_ovata/{wildcards.gene}.fasta
     """
   
 
 rule align_single_copy_orthologs:
   input:
-    'transcriptomes/OrthoFinder/Results_Dec15/Single_Copy_Orthologue_Sequences/{OG}.fa'
+    'transcriptomes/OrthoFinder/Results_Jan06/Single_Copy_Orthologue_Sequences/{OG}.fa'
   output:
-    'transcriptomes/OrthoFinder/Results_Dec15/Aligned_SCOs/{OG}.fa'
+    'transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs/{OG}.fa'
   conda:
     "/home/jgroh/heterodichogamy/conda_envs/iqtree.yaml"
   resources:
     mem_mb=50000,
-    runtime=60
+    runtime=60*3
   shell:
     "muscle -align {input} -output {output}"
 
 rule infer_gene_tree:
   input:
-    "transcriptomes/OrthoFinder/Results_Dec15/Aligned_SCOs/{OG}.fa"
+    "transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs/{OG}.fa"
   output:
     "sco_gene_trees/{OG}/{OG}.treefile"
   conda:
@@ -245,7 +515,7 @@ rule astral4:
   input:
     "astral_genetrees_contracted.nw"
   output:
-    "Juglandaceae_astral_18sp.tree"
+    "Juglandaceae_astral_20sp.tree"
   threads:
     72
   resources:
@@ -259,4 +529,34 @@ rule astral4:
         -o {output} \
         -i {input} 2> astral.log
     """
+
+rule reheader_scos:
+  input:
+    'transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs/{OG}.fa'
+  output:
+    'transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs_renamed_for_concat/{OG}.fa'
+  shell:
+    "python /home/jgroh/Pterocarya/scripts/sco_reheader.py {input} gene2species.csv > {output}"
+
+rule sco_concat:
+  input:
+    expand('transcriptomes/OrthoFinder/Results_Jan06/Aligned_SCOs_renamed_for_concat/{OG}.fa', OG=SCO)
+  output:
+    "concatenated_SCO_alignments.fasta"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/iqtree.yaml"
+  shell:
+    "seqkit concat {input} > {output}"
+
+rule ML_phylogeny:
+  input:
+    "concatenated_SCO_alignments.fasta"
+  output:
+    "ML_Tree/Juglandaceae_ML_20sp.treefile"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/iqtree.yaml"
+  threads:
+    256
+  shell:
+    "iqtree -s {input} -B 1000 -nt 256 --prefix ML_Tree/Juglandaceae_ML_20sp"
 

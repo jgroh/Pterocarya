@@ -1,0 +1,114 @@
+import pandas as pd
+
+meta = pd.read_table("RNAseq_meta.txt")
+SAMPLES = meta['Run'].tolist()
+
+FA="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A.fasta"
+#FA="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A.fasta.fai"
+
+
+rule all:
+  input:
+    expand("quants_paralogs/{sample}_quant/quant.sf", sample = SAMPLES),
+    expand("alignment_files/2PA_RNAseq/focal/{sample}.bam.bai", sample = SAMPLES)
+
+
+rule skewer:
+  input:
+    r1="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/fastq/{sample}_f1.fq.gz",
+    r2="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/fastq/{sample}_r2.fq.gz",
+  output:
+    r1="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair1.fastq.gz",
+    r2="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair2.fastq.gz",
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/skewer.yaml"
+  threads:
+    20
+  shell:
+    """
+    skewer -m any --threads {threads} --compress --output /group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{wildcards.sample} {input.r1} {input.r2}
+    """
+
+
+rule salmon_paralogs:
+  input:
+    r1="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair1.fastq.gz",
+    r2="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair2.fastq.gz",
+    transcriptome="2PA_CDS_GFAFL_paralogs.fasta",
+    index="2PA_CDS_GFAFL_paralogs_index/sa.bin"
+  output:
+    "quants_paralogs/{sample}_quant/quant.sf"
+  params:
+    index="2PA_CDS_GFAFL_paralogs_index"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/salmon.yaml"
+  shell:
+    """
+    salmon quant -i {params.index} \
+        -l A -1 {input.r1} -2 {input.r2} \
+        -p 8 --validateMappings \
+        --gcBias \
+        -o quants_paralogs/{wildcards.sample}_quant
+    """
+
+
+rule STAR_align_2PA:
+  input:
+    fa='/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA_genome_warehouse/GWHBKKX00000000.genome.fasta',
+    r1="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair1.fastq.gz",
+    r2="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/Qu_etal_2023/trimmed/{sample}-trimmed-pair2.fastq.gz",
+    SA="/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA_genome_warehouse/SA"
+  output:
+    temp("alignment_files/2PA_RNAseq/Qu_etal_2023/{sample}.Aligned.sortedByCoord.out.bam")
+  threads:
+    30
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  shell:
+    """
+    STAR --runThreadN {threads} \
+        --genomeDir /home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA_genome_warehouse \
+        --readFilesIn {input.r1} {input.r2} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix alignment_files/2PA_RNAseq/Qu_etal_2023/{wildcards.sample}. \
+        --outSAMtype BAM SortedByCoordinate \
+        --quantMode GeneCounts
+    """
+
+rule filter_alignment:
+  input:
+    "alignment_files/{assembly}/Qu_etal_2023/{sample}.Aligned.sortedByCoord.out.bam"
+  output:
+    "alignment_files/{assembly}/Qu_etal_2023/{sample}_filtered.bam"
+  resources:
+    mem_mb=10000,
+    runtime=60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view --exclude-flags 2816 --min-MQ 255 {input} -o {output}"
+
+rule index_bam:
+  input:
+    "{sample}.bam"
+  output:
+    "{sample}.bam.bai"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools index {input}"
+
+rule focal_region_2PA:
+  input:
+    bam="alignment_files/2PA_RNAseq/Qu_etal_2023/{sample}_filtered.bam",
+    bai="alignment_files/2PA_RNAseq/Qu_etal_2023/{sample}_filtered.bam.bai",
+  output:
+    "alignment_files/2PA_RNAseq/focal/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input.bam} GWHBKKX00000005:25000000-25200000 -o {output}"
+

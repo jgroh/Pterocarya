@@ -1,0 +1,578 @@
+ENVDIR="/home/jgroh/Pterocarya/conda_envs/"
+PTERO_SAMPLES = ['P.stenoptera_UCD1470', 'P.fraxinifolia_DPTE14.2', 'P.macroptera_SBG1992.306B', 'P.fraxinifolia_DPTE14.3']
+PTERO_SAMPLES_SUB = ['P.stenoptera_UCD1470', 'P.fraxinifolia_DPTE14.3', 'P.macroptera_SBG1992.306B']
+#CYCLO_SAMPLE = ['C.paliurus_SBG1996.049A', 'Cpal_2PA_Qu2023']
+CYCLO_SAMPLE = ['C.paliurus_SBG1996.049A']
+
+
+PSTE_HAP1="scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta"
+PSTE_HAP2="scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2.fasta"
+
+PSTE_CDS='/home/jgroh/Pterocarya/species_phylogeny/transcriptomes/P.stenoptera.fasta'
+IMNU_CDS='/home/jgroh/Pterocarya/genome_assemblies/IMNU/IMNU_CDS.fasta' # used for EDTA until BRAKER3 works
+
+ruleorder: scaffold_Cyclocarya > scaffold_Pterocarya
+ruleorder: scaffold_Cyclocarya_2PA_Qu2023 > scaffold_Pterocarya
+ruleorder: hifiasm_par2 > hifiasm
+
+rule all:
+  input:
+    '/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_Cyclo2PA_GFAFL1/CpalSBG.txt.gz',
+#    "/group/gmcoopgrp3/jgroh/Pterocarya/Cyclocarya_paliurus/alignment_files/Cpal_hap1/CpalSBG.bam",
+    expand("/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_tetraPA/CpalSBG.txt.gz", sample = CYCLO_SAMPLE),
+    "/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/tetraPA/CpalSBG_hifi_to_tetraPA.bam",
+#    "/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/CpalSBG_hifi_to_2PA.sam",
+#    expand("scaffolded/P.fraxinifolia_DPTE14.3/hap1/P.frax_DPTE14.{n}_hifi_reads.sam",n=['2','3']),
+    # Scaffold quality metrics
+    expand("scaffolded/{sample}/{hap}/total_bp_in_chr_sequences.txt", sample = PTERO_SAMPLES+CYCLO_SAMPLE, hap = ['primary', 'hap1', 'hap2']),
+    expand("scaffolded/{sample}/{hap}/contigs_per_scaff.txt", sample = PTERO_SAMPLES+CYCLO_SAMPLE, hap = ['primary', 'hap1','hap2']),
+    expand("scaffolded/{sample}/{hap}/{sample}_{hap}.seqkit.stats.txt", sample=PTERO_SAMPLES+CYCLO_SAMPLE, hap=['primary', 'hap1', 'hap2']),
+    # BUSCO analysis on final assemblies
+    expand("BUSCO_{sample}_{assembly}.fasta/short_summary.specific.eudicots_odb10.BUSCO_{sample}_{assembly}.fasta.txt", sample = PTERO_SAMPLES+CYCLO_SAMPLE, assembly = ['primary', 'hap1', 'hap2']),
+    # Contig stats
+    expand("hifiasm_output/{sample}/{sample}.{assembly}.seqkit.stats.txt", sample = PTERO_SAMPLES+CYCLO_SAMPLE, assembly = ['primary', 'hap1', 'hap2']),
+    # To scaffold contigs (same-genus reference-based scaffolding here, references specified in rules)
+    expand("scaffolded/{sample}/{assembly}/{sample}_{assembly}.fasta", sample = PTERO_SAMPLES+CYCLO_SAMPLE, assembly = ['primary', 'hap1', 'hap2']),
+    # liftoff annotations
+    # expand("/home/jgroh/Pterocarya/denovo_assembly/scaffolded/{sample}/{hap}/{sample}_{hap}_liftoff.gff", sample = ['P.macroptera_SBG1992.306B', 'P.fraxinifolia_DPTE14.2'], hap = ['hap1','hap2']),
+    # EDTA TE annotation
+    expand("{sample}_hap{n}.fasta.mod.EDTA.TEanno.gff3", sample=PTERO_SAMPLES_SUB, n=['1','2']),
+    # BRAKER3 annotation (only used for P. stenoptera as running w/o RNAseq generated way too many genes, other assemblies used liftoff annotations)
+    # "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/braker.gff3",
+    # RepeatMasker
+    # expand("scaffolded/{sample}/{hap}/{sample}_{hap}.fasta.masked", sample = PTERO_SAMPLES, hap = ['hap1', 'hap2','primary']),
+    # RepeatModeler
+    # "scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera-families.fa",
+    # To run hifiasm
+    #expand("hifiasm_output/{sample}/{sample}.hap1.fasta", sample = PTERO_SAMPLES),
+    # assembly of existing P.stenoptera HiFi data to check for both alleles (turned out to be gg)
+   # "/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.primary.fasta",
+   # "/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.p_ctg.gfa",
+
+rule bam2fastx:
+  input:
+    "hifi_reads/{sample}.bam"
+  output:
+    "hifi_reads/{sample}.fastq.gz"
+  conda:
+    "envs/bam2fastx.yaml"
+  resources:
+    mem_mb=36000,
+    runtime=4320
+  shell:
+    "bam2fastq -o hifi_reads/{wildcards.sample} {input}"
+
+rule hifiasm:
+  input:
+    "hifi_reads/{sample}.fastq.gz"
+  output:
+    "hifiasm_output/{sample}/{sample}.asm.bp.p_ctg.gfa",
+    "hifiasm_output/{sample}/{sample}.asm.bp.hap1.p_ctg.gfa",
+    "hifiasm_output/{sample}/{sample}.asm.bp.hap2.p_ctg.gfa",
+  conda:
+    "envs/hifiasm.yaml"
+  resources:
+    mem_mb=800000,
+    runtime=20160
+  threads:
+    32
+  log:
+    "logs/{sample}.hifiasm.out"
+  shell:
+    "hifiasm -o hifiasm_output/{wildcards.sample}/{wildcards.sample}.asm -t {threads} {input} 2> {log}"
+
+rule hifiasm_par2:
+  input:
+    "hifi_reads/P.fraxinifolia_DPTE14.3.fastq.gz"
+  output:
+    "hifiasm_output/P.fraxinifolia_DPTE14.3/P.fraxinifolia_DPTE14.3.asm.bp.p_ctg.gfa",
+    "hifiasm_output/P.fraxinifolia_DPTE14.3/P.fraxinifolia_DPTE14.3.asm.bp.hap1.p_ctg.gfa",
+    "hifiasm_output/P.fraxinifolia_DPTE14.3/P.fraxinifolia_DPTE14.3.asm.bp.hap2.p_ctg.gfa",
+  conda:
+    "envs/hifiasm.yaml"
+  resources:
+    mem_mb=800000,
+    runtime=20160
+  threads:
+    32
+  log:
+    "logs/P.fraxinifolia_DPTE14.3.hifiasm.out"
+  shell:
+    "hifiasm -o hifiasm_output/P.fraxinifolia_DPTE14.3/P.fraxinifolia_DPTE14.3.asm --hg-size 560m -D 15 --max-kocc 30000 -t {threads} {input} 2> {log}"
+
+
+rule hifiasm_IMNU:
+  input:
+    "/home/jgroh/Pterocarya/HiFi_data_IMNU/SRR26994977.fasta"
+  output:
+    "/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.p_ctg.gfa",
+    "/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.hap1.p_ctg.gfa",
+    "/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.hap2.p_ctg.gfa",
+  conda:
+    "envs/hifiasm.yaml"
+  resources:
+    mem_mb=800000,
+    runtime=20160
+  threads:
+    32
+  log:
+    "/home/jgroh/Pterocarya/HiFi_data_IMNU/hifiasm.log"
+  shell:
+    "hifiasm -o /home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm -t {threads} {input} 2> {log}"
+
+
+rule gfa_to_fasta:
+  input:
+    pr="hifiasm_output/{sample}/{sample}.asm.bp.p_ctg.gfa",
+    h1="hifiasm_output/{sample}/{sample}.asm.bp.hap1.p_ctg.gfa",
+    h2="hifiasm_output/{sample}/{sample}.asm.bp.hap2.p_ctg.gfa",
+  output:
+    pr="hifiasm_output/{sample}/{sample}.primary.fasta",
+    h1="hifiasm_output/{sample}/{sample}.hap1.fasta",
+    h2="hifiasm_output/{sample}/{sample}.hap2.fasta",
+  resources:
+    mem_mb=16000,
+    runtime=720
+  shell:
+    """
+    awk '/^S/{{print \">\"$2;print $3}}' {input.pr} > {output.pr}
+    awk '/^S/{{print \">\"$2;print $3}}' {input.h1} > {output.h1}
+    awk '/^S/{{print \">\"$2;print $3}}' {input.h2} > {output.h2}
+    """
+
+rule gfa_to_fasta_IMNU:
+  input:
+    pr="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.p_ctg.gfa",
+    h1="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.hap1.p_ctg.gfa",
+    h2="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.asm.bp.hap2.p_ctg.gfa",
+  output:
+    pr="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.primary.fasta",
+    h1="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.hap1.fasta",
+    h2="/home/jgroh/Pterocarya/HiFi_data_IMNU/IMNU.hap2.fasta",
+  resources:
+    mem_mb=16000,
+    runtime=720
+  shell:
+    """
+    awk '/^S/{{print \">\"$2;print $3}}' {input.pr} > {output.pr}
+    awk '/^S/{{print \">\"$2;print $3}}' {input.h1} > {output.h1}
+    awk '/^S/{{print \">\"$2;print $3}}' {input.h2} > {output.h2}
+    """
+
+
+rule seqkit_contigs:
+  input:
+    "hifiasm_output/{sample}/{sample}.{assembly}.fasta"
+  output:
+    "hifiasm_output/{sample}/{sample}.{assembly}.seqkit.stats.txt"
+  conda:
+    "envs/seqkit.yaml"
+  shell:
+    "seqkit stats -a -N 90 {input} > {output}"
+
+rule seqkit_scaffolds:
+  input:
+    "scaffolded/{sample}/{hap}/{sample}_{hap}.fasta"
+  output:
+    "scaffolded/{sample}/{hap}/{sample}_{hap}.seqkit.stats.txt"
+  conda:
+    "envs/seqkit.yaml"
+  shell:
+    "seqkit stats -a -N 90 {input} > {output}"
+
+rule contigs_per_scaff:
+  input:
+    "scaffolded/{sample}/{hap}/ragtag.scaffold.agp"
+  output:
+    "scaffolded/{sample}/{hap}/contigs_per_scaff.txt"
+  shell:
+    """
+    grep "^C" {input} | awk '$5=="W" {{print $1}}' | sort | uniq -c | awk '{{total+=$1}} END{{print total/NR}}' > {output}
+    """
+
+
+rule bp_in_chr_seqs:
+  input:
+    "scaffolded/{sample}/{hap}/{sample}_{hap}.fasta.fai"
+  output:
+    "scaffolded/{sample}/{hap}/total_bp_in_chr_sequences.txt"
+  shell:
+    """
+    grep "^C" {input} | awk '{{sum+=$2}} END{{print sum}}' > {output}
+    """
+
+
+rule scaffold_Pterocarya:
+  input:
+    ref="/home/jgroh/Pterocarya/genome_assemblies/IMNU/Pterocarya_stenoptera_genome.fasta",
+    qry="hifiasm_output/{sample}/{sample}.{assembly}.fasta",
+  output:
+    fa="scaffolded/{sample}/{assembly}/ragtag.scaffold.fasta",
+    agp="scaffolded/{sample}/{assembly}/ragtag.scaffold.agp"
+  conda:
+    "envs/ragtag.yaml"
+  shell:
+    "ragtag.py scaffold -o scaffolded/{wildcards.sample}/{wildcards.assembly} {input.ref} {input.qry}"
+
+rule scaffold_Cyclocarya:
+  input:
+    ref="/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA2023.fna",
+    qry="hifiasm_output/C.paliurus_SBG1996.049A/C.paliurus_SBG1996.049A.{assembly}.fasta",
+  output:
+    fa="scaffolded/C.paliurus_SBG1996.049A/{assembly}/ragtag.scaffold.fasta",
+    agp="scaffolded/C.paliurus_SBG1996.049A/{assembly}/ragtag.scaffold.agp"
+  conda:
+    "envs/ragtag.yaml"
+  shell:
+    "ragtag.py scaffold -o scaffolded/C.paliurus_SBG1996.049A/{wildcards.assembly} {input.ref} {input.qry}"
+
+rule scaffold_Cyclocarya_2PA_Qu2023:
+  input:
+    ref="/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA2023.fna",
+    qry="hifiasm_output/Cpal_2PA_Qu2023/Cpal_2PA_Qu2023.{assembly}.fasta",
+  output:
+    fa="scaffolded/Cpal_2PA_Qu2023/{assembly}/ragtag.scaffold.fasta",
+    agp="scaffolded/Cpal_2PA_Qu2023/{assembly}/ragtag.scaffold.agp"
+  conda:
+    "envs/ragtag.yaml"
+  shell:
+    "ragtag.py scaffold -o scaffolded/Cpal_2PA_Qu2023/{wildcards.assembly} {input.ref} {input.qry}"
+
+rule rename:
+  input:
+    "scaffolded/{sample}/{assembly}/ragtag.scaffold.fasta",
+  output:
+    "scaffolded/{sample}/{assembly}/{sample}_{assembly}.fasta",
+  shell:
+    """
+    sed 's/_RagTag//g' {input} > {output} &&
+    rm {input}
+    """
+
+rule faidx:
+  input:
+    "{file}.fasta"
+  output:
+    "{file}.fasta.fai"
+  shell:
+    "samtools faidx {input}"
+
+
+
+rule busco:
+  input:
+    "scaffolded/{sample}/{assembly}/{sample}_{assembly}.fasta"
+  output:
+    "BUSCO_{sample}_{assembly}.fasta/short_summary.specific.eudicots_odb10.BUSCO_{sample}_{assembly}.fasta.txt"
+  conda:
+    "envs/busco_5.8.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  shell:
+    "busco -i {input} -f -m genome -l eudicots_odb10"
+
+rule busco_transcriptome:
+  input:
+    "../species_phylogeny/transcriptomes/P.stenoptera.fasta"
+  output:
+    "BUSCO_P.stenoptera.fasta/short_summary.specific.eudicots_odb10.BUSCO_{sample}_{assembly}.fasta.txt"
+  conda:
+    "envs/busco_5.8.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  shell:
+    "busco -i {input} -f -m transcriptome -l eudicots_odb10"
+
+
+rule download_OrthoDB_Viridiplantae:
+  input:
+  output:
+    "Viridiplantae.fa"
+  shell:
+    """
+    wget https://bioinf.uni-greifswald.de/bioinf/partitioned_odb11/Viridiplantae.fa.gz
+    gunzip Viridiplantae.fa.gz
+    """
+
+rule repeatmodeler2:
+  input:
+    fa="scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera_UCD1470_primary.fasta",
+    db="scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera.translation" # several files produced from BuildDatabase, run beforehand 
+  output:
+    "scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera-families.fa"
+  conda:
+    "envs/repeatmodeler2.yaml"
+  threads:
+    72
+  resources:
+    mem_mb=50000,
+    runtime=168*60
+  shell:
+    """
+    RepeatModeler -database scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera \
+        -LTRStruct \
+        -threads {threads} &> scaffolded/P.stenoptera_UCD1470/primary/repeatmodeler.run.out
+    """
+
+
+rule repeatmasker:
+  input:
+    fa="scaffolded/{sample}/{hap}/{sample}_{hap}.fasta",
+    lib="scaffolded/P.stenoptera_UCD1470/primary/P.stenoptera-families.fa"
+  output:
+    "scaffolded/{sample}/{hap}/{sample}_{hap}.fasta.masked",
+  conda:
+    "envs/repeatmodeler2.yaml"
+  threads:
+    72
+  resources:
+    mem_mb=50000,
+    runtime=168*60
+  shell:
+    """
+    RepeatMasker -pa {threads} -lib {input.lib} -xsmall {input.fa}
+    """
+
+
+
+    
+rule BRAKER3_hap2:
+  input:
+    "scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2.fasta.masked",
+  output:
+    "braker.gff3"
+  resources:
+    mem_mb=60000,
+    runtime=7*24*60
+  threads:
+    72
+  shell:
+    """
+    singularity exec -B /home/jgroh/Pterocarya/BRAKER braker3.sif braker.pl \
+        --genome {input} \
+        --prot_seq=Viridiplantae.fa \
+        --threads {threads} \
+        --AUGUSTUS_CONFIG_PATH=/home/jgroh/Pterocarya/denovo_assembly/BRAKER/config \
+        --workingdir=/home/jgroh/Pterocarya/scaffolded/P.stenoptera/hap2/ \
+        --gff3 \
+        --makehub \
+        --bam=alignment_files/hap2_RNAseq/published_data/SRR26994971.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/published_data/SRR26994972.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/published_data/SRR26994973.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/published_data/SRR26994974.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_136.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_138_F.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_138_M.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_145.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_146.5.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_149_F.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_149_M.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/DV_150.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/PSTE_UCD1.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/PSTE_WS_11.01.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/PSTE_WS_2.08.Aligned.sortedByCoord.out.bam,\
+          alignment_files/hap2_RNAseq/mydata/PSTE_WS_2.10.Aligned.sortedByCoord.out.bam \
+    """
+
+
+rule EDTA_Pste:
+  input:
+    fasta="scaffolded/P.stenoptera_UCD1470/{hap}/P.stenoptera_UCD1470_{hap}.fasta",
+    cds=PSTE_CDS
+  output:
+    "P.stenoptera_UCD1470_{hap}.fasta.mod.EDTA.TEanno.gff3"
+  threads:
+    32
+  resources:
+    runtime=72*60,
+    mem_mb=100000
+  shell:
+    """
+    singularity exec EDTA.sif EDTA.pl \
+        --genome {input.fasta} \
+        --anno 1 \
+        --sensitive 1 \
+        --overwrite 1 \
+        --threads {threads} \
+        --cds {input.cds} \
+    """
+
+rule EDTA_Pfra_14_3:
+  input:
+    fasta="scaffolded/P.fraxinifolia_DPTE14.3/{hap}/P.fraxinifolia_DPTE14.3_{hap}.fasta",
+    cds=PSTE_CDS
+  output:
+    "P.fraxinifolia_DPTE14.3_{hap}.fasta.mod.EDTA.TEanno.gff3"
+  threads:
+    32
+  resources:
+    runtime=72*60,
+    mem_mb=100000
+  shell:
+    """
+    singularity exec EDTA.sif EDTA.pl \
+        --genome {input.fasta} \
+        --anno 1 \
+        --sensitive 1 \
+        --overwrite 1 \
+        --threads {threads} \
+        --cds {input.cds} \
+    """
+
+rule EDTA_Pmac:
+  input:
+    fasta="scaffolded/P.macroptera_SBG1992.306B/{hap}/P.macroptera_SBG1992.306B_{hap}.fasta",
+    cds=PSTE_CDS
+  output:
+    "P.macroptera_SBG1992.306B_{hap}.fasta.mod.EDTA.TEanno.gff3"
+  threads:
+    32
+  resources:
+    runtime=72*60,
+    mem_mb=100000
+  shell:
+    """
+    singularity exec EDTA.sif EDTA/EDTA.pl \
+        --genome {input.fasta} \
+        --anno 1 \
+        --sensitive 1 \
+        --overwrite 1 \
+        --threads {threads} \
+        --cds {input.cds} \
+    """
+
+rule liftoff_to_Pmac_Pfra:
+  input:
+    ref='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta',
+    gff='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/braker/braker.gff3',
+    target='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/{sample}/{hap}/{sample}_{hap}.fasta'
+  output:
+    '/home/jgroh/Pterocarya/denovo_assembly/scaffolded/{sample}/{hap}/{sample}_{hap}_liftoff.gff'
+  conda:
+    '/home/jgroh/heterodichogamy/conda_envs/liftoff.yaml'
+  resources:
+    mem_mb=40000,
+    runtime=12*60
+  shell:
+    """
+    liftoff -g {input.gff} \
+        -dir "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/{wildcards.sample}/{wildcards.hap}/" \
+        -o {output} \
+        -u "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/{wildcards.sample}/{wildcards.hap}/liftoff_unmapped.txt" \
+        {input.target} {input.ref}
+    """
+
+
+#rule map_frax_reads:
+#  input:
+#    reads="hifi_reads/P.fraxinifolia_DPTE14.{n}.fastq.gz",
+#    fa="scaffolded/P.fraxinifolia_DPTE14.3/hap1/P.fraxinifolia_DPTE14.3_hap1.fasta"
+#  output:
+#    "scaffolded/P.fraxinifolia_DPTE14.3/hap1/P.frax_DPTE14.{n}_hifi_reads.sam"
+#  resources:
+#    mem_mb=80000,
+#    runtime=12*60
+#  threads:
+#    48
+#  shell:
+#    """
+#    minimap2 -a -x map-hifi -t {threads} -a {input.fa} {input.reads} > {output} 
+
+rule map_Cpal_reads_to_Cpal_hap1:
+  input:
+    reads="hifi_reads/C.paliurus_SBG1996.049A.fastq.gz",
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A_hap1.fasta"
+  output:
+    "/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/Cpal_hap1/CpalSBG.bam"
+  resources:
+    mem_mb=80000,
+    runtime=12*60
+  threads:
+    48
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    """
+    minimap2 -a -x map-hifi -t {threads} -a {input.fa} {input.reads} | samtools sort -O bam - > {output} 
+    """
+
+rule map_Cpal_reads_to_2PA:
+  input:
+    reads="hifi_reads/C.paliurus_SBG1996.049A.fastq.gz",
+    fa="/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/2PA2023.fna"
+  output:
+    "/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/CpalSBG_hifi_to_2PA.sam"
+  resources:
+    mem_mb=80000,
+    runtime=12*60
+  threads:
+    48
+  shell:
+    """
+    minimap2 -a -x map-hifi -t {threads} -a {input.fa} {input.reads} > {output} 
+    """
+
+rule map_Cpal_reads_to_tetraPA:
+  input:
+    reads="hifi_reads/C.paliurus_SBG1996.049A.fastq.gz",
+    fa="/home/jgroh/heterodichogamy/Cyclocarya_genome_assemblies/tetraPA.fasta"
+  output:
+    "/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/tetraPA/CpalSBG_hifi_to_tetraPA.bam"
+  resources:
+    mem_mb=80000,
+    runtime=12*60
+  threads:
+    48
+  shell:
+    """
+    minimap2 -a -x map-hifi -t {threads} -a {input.fa} {input.reads} | samtools sort -O bam - > {output}
+    """
+
+
+rule depth_Cyclocarya_tetraPA_GFAFL2:
+  input:
+    bam="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/tetraPA/CpalSBG_hifi_to_tetraPA.bam",
+    bai="/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/tetraPA/CpalSBG_hifi_to_tetraPA.bam.bai",
+  output:
+    "/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_tetraPA/CpalSBG.txt.gz"
+  shell:
+    """
+    samtools depth -a {input.bam} -r GWHBKKY00000015:31570000-32570000 | gzip > {output}
+    """
+
+
+rule call_diploids_Cpal_hap1_GFAFL1:
+  input:
+    fa="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A_hap1.fasta",
+    bam='/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/Cpal_hap1/CpalSBG.bam',
+    bai='/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/alignment_files/Cpal_hap1/CpalSBG.bam.bai',
+  output:
+    "calls/Cpal_hap1_GFAFL1_diploids.bcf"
+  resources:
+    runtime = 24*60,
+    mem_mb = 10000
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell: # includes intron + 100 bp upstream and 300bp downstream of stop codon
+    """
+    bcftools mpileup -Ou -f {input.fa} -r CM056974.1:26895999-26902560 \
+        --annotate "AD,DP,INFO/AD" {input.cram} | bcftools call -m -Oz -f GQ,GP -o {output}
+    """
+
+rule depth_GFAFL_copies:
+  input:
+    bam='/group/gmcoopgrp3/jgroh/Pterocarya2/Cyclocarya_paliurus/CpalSBG_hifi_to_2PA.bam'
+  output:
+    g1='/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_Cyclo2PA_GFAFL1/CpalSBG.txt.gz',
+    g2='/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_Cyclo2PA_GFAFL2/CpalSBG.txt.gz',
+    norm='/home/jgroh/heterodichogamy/Cyclocarya_paliurus/results/coverage_Cyclo2PA_GFAFL1/norm/CpalSBG_norm.txt.gz',
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    """
+    samtools depth -a {input.bam} -r CM056974.1:25052078-25058591 | gzip > {output.g1}
+    samtools depth -a {input.bam} -r CM056974.1:25137259-25143587 | gzip > {output.g2}
+    samtools depth -a {input.bam} -r CM056973.1 | awk '{{print $3}}' | sort -n | awk '{{ a[i++]=$1; }} END {{ print a[int(i/2)]; }}' > {output.norm}
+    """

@@ -4,6 +4,7 @@ import pandas as pd
 SAMTOOLS='/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml'
 PIXY="/home/jgroh/heterodichogamy/conda_envs/pixy.yaml"
 BEDTOOLS="/home/jgroh/heterodichogamy/conda_envs/bedtools.yaml"
+# For RNAseq rules, there are some interdependencies with this file and"../RNAseq/Snakefile" 
 
 SRA_PAIRED_META=pd.read_table("sra_paired_samples.txt", header = None, names = ['Run', 'Note'])
 SRA_PAIRED_SAMPLES=SRA_PAIRED_META['Run'].tolist()
@@ -13,6 +14,7 @@ ALL_PTERO_SAMPLES=ALL_PTERO_META['ID'].tolist()
 
 PSTE_META=pd.read_table("Pste_WGS_phenotypes.txt", header = None, names = ['ID', 'type'])
 PSTE_SAMPLES=PSTE_META['ID'].tolist()
+PSTE_NO_DV134=[smpl for smpl in PSTE_SAMPLES if smpl != 'PSTE_DV_134']
 
 PSTE_UCD1470_HAP1='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta'
 PSTE_UCD1470_HAP2='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2.fasta'
@@ -23,6 +25,17 @@ PSTE_UCD1470_HAP2_BWT='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.steno
 
 PSTE_UCD1470_HAP1_FAI='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1.fasta.fai'
 PSTE_UCD1470_HAP2_FAI='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2.fasta.fai'
+
+PMAC_HAP1='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1/P.macroptera_SBG1992.306B_hap1.fasta'
+PMAC_HAP2='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2/P.macroptera_SBG1992.306B_hap2.fasta'
+PMAC_HAP1_FAI='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1/P.macroptera_SBG1992.306B_hap1.fasta.fai'
+PMAC_HAP2_FAI='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2/P.macroptera_SBG1992.306B_hap2.fasta.fai'
+
+CPAL_HAP1='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A_hap1.fasta'
+CPAL_HAP1_LIFTOFF_GFF='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/C.paliurus_SBG1996.049A_hap1_liftoff.gff'
+
+CPAL_HAP2='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2/C.paliurus_SBG1996.049A_hap2.fasta'
+CPAL_HAP2_LIFTOFF_GFF='/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2/C.paliurus_SBG1996.049A_hap2_liftoff.gff'
 
 HAP1_FAI_TBL = pd.read_table(PSTE_UCD1470_HAP1_FAI, header = None, names = ['chr','w','x','y','z'])
 HAP2_FAI_TBL = pd.read_table(PSTE_UCD1470_HAP2_FAI, header = None, names = ['chr','w','x','y','z'])
@@ -48,11 +61,18 @@ PMAC_SAMPLES = ['PMAC_SO4_S63']
 PRHO_SAMPLES = ['PRHO_SO1_S61', 'PRHO_SO6_S64']
 
 ISOSEQ_SAMPLES_STEVENS = ['SRR25617144', 'SRR25617145', 'SRR25617146', 'SRR25617147', 'SRR25617149', 'SRR25617150']
-ISOSEQ_SAMPLES_ZHANG =  ['SRR26994970']
+ISOSEQ_SAMPLES_ZHANG =  ['SRR26994970'] #root, stem, leaf, and fruit
 
+# fruit, leaf, stem, root
 IMNU_RNASEQ_SAMPLES = ['SRR26994971', 'SRR26994972', 'SRR26994973', 'SRR26994974']
 
-RNASEQ_MYSAMPLES = ['DV_136', 'DV_138_F','DV_138_M', 'DV_145', 'DV_146.5', 'DV_149_F','DV_149_M', 'DV_150', 'PSTE_UCD1', 'PSTE_WS_11.01', 'PSTE_WS_2.08','PSTE_WS_2.10']
+RNASEQ_MYSAMPLES = ['DV_136', 'DV_138_F','DV_138_M', 'DV_145', 'DV_146.5', 'DV_149_F','DV_149_M', 'DV_150', 'PSTE_UCD1', 'PSTE_WS_11.01', 'PSTE_WS_2.08','PSTE_WS_2.10',
+    'Pste_DV_144_F','Pste_WS_01.01_mbuds','Pste_WS_01.05_mbuds','Pste_WS_02.06_mbuds','Pste_WS_10.01_mbuds','Pste_WS_10.02_mbuds','Pste_WS_10.05_mbuds','Pste_WS_17.01_mbuds']
+
+
+GENG_PSTE_SMPL_TBL=pd.read_table("Geng_etal_2024_data/Geng_etal_2024_SRA_samples.txt", header = None, names = ['ID', 'Run', 'species'])
+GENG_STENOPTERA=GENG_PSTE_SMPL_TBL[GENG_PSTE_SMPL_TBL['species']=='stenoptera']['Run'].tolist()
+
 
 ruleorder: align_to_IMNU > align_to_IMNU_SRA
 ruleorder: align_to_HAP1 > align_to_HAP1_SRA
@@ -62,41 +82,47 @@ ruleorder: index_bam_general > index_bam_IsoSeq
 
 rule all:
   input:
-    expand("results/coverage_hap1_RNAseq/mydata/{sample}_Gloc_RNAseq.txt.gz", sample = RNASEQ_MYSAMPLES),
-    expand("results/coverage_hap2_RNAseq/mydata/{sample}_Gloc_RNAseq.txt.gz", sample = RNASEQ_MYSAMPLES),
-    expand("results/coverage_hap1_RNAseq/published_data/{sample}_Gloc_RNAseq.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
-    expand("results/coverage_hap2_RNAseq/published_data/{sample}_Gloc_RNAseq.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
+    expand("alignment_files/IsoSeq_hap{n}/focal/{sample}.bam.bai", n = ['1', '2'], sample = ISOSEQ_SAMPLES_STEVENS+ISOSEQ_SAMPLES_ZHANG),
+    expand("alignment_files/Cpal_hap{n}_RNAseq/mydata/C.paliurus_mbuds.Aligned.sortedByCoord.out.bam",n = ['1','2']),
+    "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/SA",
+    expand("alignment_files/Pmac_hap{N}_RNAseq/mydata/P.macroptera_mbuds.Aligned.sortedByCoord.out.bam", N=['1','2']),
+    "calls/PSTE_UCD1470_HAP2/P.stenoptera_analysis_set_FAFL_biallelic_snps.vcf.gz",
+    expand("alignment_files/PSTE_UCD1470_HAP2/focal/{sample}.cram.crai", sample=ALL_PTERO_SAMPLES),
+   # expand("results/coverage_hap1_RNAseq/mydata/{sample}_Gloc_RNAseq.txt.gz", sample = RNASEQ_MYSAMPLES),
+    #expand("results/coverage_hap2_RNAseq/mydata/{sample}_Gloc_RNAseq.txt.gz", sample = RNASEQ_MYSAMPLES),
+    #expand("results/coverage_hap1_RNAseq/published_data/{sample}_Gloc_RNAseq.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
+    #expand("results/coverage_hap2_RNAseq/published_data/{sample}_Gloc_RNAseq.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
 #    "denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1_liftoff.gff",
 #    "denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2_liftoff.gff",
     #"denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1_liftoff.gff", 
 #    "denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2_liftoff.gff", 
-    expand("output/PSTE_UCD1470_HAP{N}/Pste.assoc.txt", N = ['1', '2']), 
-    expand("calls/PSTE_UCD1470_HAP{N}/Pste.bed", N=['1','2']),
+   # expand("output/PSTE_UCD1470_HAP{N}/Pste.assoc.txt", N = ['1', '2']), 
+   # expand("calls/PSTE_UCD1470_HAP{N}/Pste.bed", N=['1','2']),
 #    expand("calls/PSTE_UCD1470_HAP{N}/biallelic_SNPs_filtered.vcf.gz", N=['1','2']),
 #    "calls/PSTE_UCD1470_HAP2/allsites_unfiltered.vcf.gz",
 #    "calls/PSTE_UCD1470_HAP1/allsites_unfiltered.vcf.gz",
-    expand("results/coverage_UCD1470_HAP{N}/{sample}_Gloc.txt.gz", N=['1','2'], sample= PSTE_SAMPLES),
-    expand("results/coverage_UCD1470_HAP1/{sample}_l{n}.txt.gz", sample= PSTE_SAMPLES, n = ['1','2']),
+   # expand("results/coverage_UCD1470_HAP{N}/{sample}_Gloc.txt.gz", N=['1','2'], sample= PSTE_SAMPLES),
+   # expand("results/coverage_UCD1470_HAP1/{sample}_l{n}.txt.gz", sample= PSTE_SAMPLES, n = ['1','2']),
 #    expand("alignment_files/PSTE_UCD1470_HAP{N}/{sample}.cram", N=['1','2'],sample = PSTE_SAMPLES),
-    expand("alignment_files/{hap}_RNAseq/mydata/{sample}.Aligned.sortedByCoord.out.bam", hap = ['hap1', 'hap2'], sample = RNASEQ_MYSAMPLES), 
-    expand("alignment_files/{hap}_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam", hap = ['hap1', 'hap2'], sample = IMNU_RNASEQ_SAMPLES),
+    expand("alignment_files/{hap}_RNAseq/mydata/{sample}.Aligned.sortedByCoord.out.bam.bai", hap = ['hap1', 'hap2'], sample = RNASEQ_MYSAMPLES), 
+   # expand("alignment_files/{hap}_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam", hap = ['hap1', 'hap2'], sample = IMNU_RNASEQ_SAMPLES),
 #    "results/pixy/1kb_pi.txt",
 #    "results/pixy/UCD2_SNPs_pi.txt",
 #    "calls/IMNU/UCD2_heterozygous_SNPs.bed",
-    expand("results/coverage_IMNU/{sample}_chr{N}.txt.gz", sample=PSTE_SAMPLES, N = ['12','14','16']),
+   # expand("results/coverage_IMNU/{sample}_chr{N}.txt.gz", sample=PSTE_SAMPLES, N = ['12','14','16']),
 #j    expand("alignment_files/IMNU/{sample}_focal_region.bam", sample = PFRA_SAMPLES+PMAC_SAMPLES+PRHO_SAMPLES),
-    expand("sra_fasta_paired/{sample}_{N}.fasta.gz", sample=SRA_PAIRED_SAMPLES, N = ['1','2']),
-    "calls/IMNU/allsites_filtered_Chr11.vcf.gz",
+   # expand("sra_fasta_paired/{sample}_{N}.fasta.gz", sample=SRA_PAIRED_SAMPLES, N = ['1','2']),
+   # "calls/IMNU/allsites_filtered_Chr11.vcf.gz",
 #    "HiFi_data_IMNU/SRR26994977.fasta",
-    "calls/IMNU/allsites_filtered_Chr11.vcf.gz",
-    BNU_FASTA+".mod.EDTA.TEanno.gff3",
-    IMNU_FASTA+".mod.EDTA.TEanno.gff3",
-    expand("results/coverage_IMNU/{sample}_Gloc.txt.gz", sample = ALL_PTERO_SAMPLES),
-    expand("results/coverage_IMNU_RNAseq/{sample}_Gloc.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
-    expand("results/coverage_IsoSeq_hap1/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_STEVENS),
-    expand("results/coverage_IsoSeq_hap1/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_ZHANG),
-    expand("results/coverage_IsoSeq_hap2/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_STEVENS),
-    expand("results/coverage_IsoSeq_hap2/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_ZHANG),
+   # "calls/IMNU/allsites_filtered_Chr11.vcf.gz",
+   # BNU_FASTA+".mod.EDTA.TEanno.gff3",
+   # IMNU_FASTA+".mod.EDTA.TEanno.gff3",
+   # expand("results/coverage_IMNU/{sample}_Gloc.txt.gz", sample = ALL_PTERO_SAMPLES),
+   # expand("results/coverage_IMNU_RNAseq/{sample}_Gloc.txt.gz", sample = IMNU_RNASEQ_SAMPLES),
+   # expand("results/coverage_IsoSeq_hap1/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_STEVENS),
+  #  expand("results/coverage_IsoSeq_hap1/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_ZHANG),
+  #  expand("results/coverage_IsoSeq_hap2/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_STEVENS),
+  #  expand("results/coverage_IsoSeq_hap2/{sample}_Gloc.txt.gz", sample = ISOSEQ_SAMPLES_ZHANG),
 #    expand("calls/{genome}/Pste.bed", genome = ['IMNU', 'BNU']),   # final version complete, remain commented
 #    expand("results/coverage_IMNU/{sample}_Gloc.txt.gz", sample = ALL_PTERO_SAMPLES)
 
@@ -220,9 +246,16 @@ rule align_to_HAP2_SRA:
     rm -r tmp_sorted_reads/HAP2/{wildcards.sample}
     """
 
-
-
-
+rule subset_cram_focal_region:
+  input:
+    "alignment_files/PSTE_UCD1470_HAP2/{sample}.cram"
+  output:
+    "alignment_files/PSTE_UCD1470_HAP2/focal/{sample}.cram"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input} Chr11:4358000-4430000 -o {output}"
+  
 
 
 rule bcftools_call_by_chrom_HAP1:
@@ -566,6 +599,26 @@ rule align_IsoSeq_Zhang_etal_2024_data_hap2:
     10
   shell:
     "minimap2 -ax splice -uf -C5 {input.ref} {input.fasta} | samtools sort -O bam -o {output} -"
+
+rule subset_isoseq_bam_focal_region_hap1:
+  input:
+    "alignment_files/IsoSeq_hap1/{sample}.bam"
+  output:
+    "alignment_files/IsoSeq_hap1/focal/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input} Chr11:3800000-4000000 -o {output}"
+
+rule subset_isoseq_bam_focal_region_hap2:
+  input:
+    "alignment_files/IsoSeq_hap2/{sample}.bam"
+  output:
+    "alignment_files/IsoSeq_hap2/focal/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input} Chr11:4350000-4440000 -o {output}"
 
 rule align_to_IMNU:
   input:
@@ -1097,7 +1150,7 @@ rule liftoff_IMNU_to_hap2:
 
 
 # This step is a prerequisite to run STAR. 
-rule STAR_index_hap1:
+rule STAR_index_hap1_Pste_rec:
   input:
     fa=PSTE_UCD1470_HAP1,
     gff="denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap1/P.stenoptera_UCD1470_hap1_liftoff.gff"
@@ -1119,7 +1172,7 @@ rule STAR_index_hap1:
     """
 
 # This step is a prerequisite to run STAR. 
-rule STAR_index_hap2:
+rule STAR_index_hap2_Pste_dom:
   input:
     fa=PSTE_UCD1470_HAP2,
     gff="denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2/P.stenoptera_UCD1470_hap2_liftoff.gff"
@@ -1137,6 +1190,94 @@ rule STAR_index_hap2:
     STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.stenoptera_UCD1470/hap2 \
         --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gff} --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 150 \
         --outTmpDir hap2_STAR_index \
+        --genomeSAindexNbases 13
+    """
+
+# This step is a prerequisite to run STAR. 
+rule STAR_index_macroptera_hap1_dom:
+  input:
+    fa=PMAC_HAP1,
+    gff="denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1/P.macroptera_SBG1992.306B_hap1_liftoff.gff"
+  output:
+    "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1/SA"
+  threads:
+    20
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=60
+  shell:
+    """
+    STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1 \
+        --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gff} --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 150 \
+         --outTmpDir Pmac_hap1_STAR_index \
+        --genomeSAindexNbases 13
+    """
+
+# This step is a prerequisite to run STAR. 
+rule STAR_index_macroptera_hap2_rec:
+  input:
+    fa=PMAC_HAP2,
+    gff="denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2/P.macroptera_SBG1992.306B_hap2_liftoff.gff"
+  output:
+    "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2/SA"
+  threads:
+    20
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=60
+  shell:
+    """
+    STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2 \
+        --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gff} --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 150 \
+         --outTmpDir Pmac_hap2_STAR_index \
+        --genomeSAindexNbases 13
+    """
+
+# This step is a prerequisite to run STAR. 
+rule STAR_index_Cpal_hap1:
+  input:
+    fa=CPAL_HAP1,
+    gff=CPAL_HAP1_LIFTOFF_GFF,
+  output:
+    "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/SA"
+  threads:
+    20
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=60
+  shell:
+    """
+    STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1 \
+        --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gff} --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 150 \
+         --outTmpDir Cpal_hap1_STAR_index \
+        --genomeSAindexNbases 13
+    """
+
+# This step is a prerequisite to run STAR. 
+rule STAR_index_Cpal_hap2:
+  input:
+    fa=CPAL_HAP2,
+    gff=CPAL_HAP2_LIFTOFF_GFF,
+  output:
+    "/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2/SA"
+  threads:
+    20
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  resources:
+    mem_mb=50000,
+    runtime=60
+  shell:
+    """
+    STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2 \
+        --genomeFastaFiles {input.fa} --sjdbGTFfile {input.gff} --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 150 \
+         --outTmpDir Cpal_hap2_STAR_index \
         --genomeSAindexNbases 13
     """
 
@@ -1298,6 +1439,112 @@ rule STAR_align_hap2_mydata:
         --outSAMstrandField intronMotif 
     """
 
+rule STAR_align_Pmac_mbud_hap1_mydata:
+  input:
+    fa=PMAC_HAP1,
+    index="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1/SA",
+    r1="RNAseq/trimmed_reads/P.macroptera_mbuds-trimmed-pair1.fastq.gz",
+    r2="RNAseq/trimmed_reads/P.macroptera_mbuds-trimmed-pair2.fastq.gz",
+  output:
+    "alignment_files/Pmac_hap1_RNAseq/mydata/P.macroptera_mbuds.Aligned.sortedByCoord.out.bam"
+  threads:
+    30
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  shell:
+    """
+    STAR --runThreadN {threads} \
+        --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap1 \
+        --readFilesIn {input.r1} {input.r2} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix alignment_files/Pmac_hap1_RNAseq/mydata/P.macroptera_mbuds. \
+        --outSAMtype BAM SortedByCoordinate \
+        --quantMode GeneCounts \
+        --outSAMstrandField intronMotif 
+    """
+
+rule STAR_align_Pmac_mbud_hap2_mydata:
+  input:
+    fa=PMAC_HAP2,
+    index="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2/SA",
+    r1="RNAseq/trimmed_reads/P.macroptera_mbuds-trimmed-pair1.fastq.gz",
+    r2="RNAseq/trimmed_reads/P.macroptera_mbuds-trimmed-pair2.fastq.gz",
+  output:
+    "alignment_files/Pmac_hap2_RNAseq/mydata/P.macroptera_mbuds.Aligned.sortedByCoord.out.bam"
+  threads:
+    30
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  shell:
+    """
+    STAR --runThreadN {threads} \
+        --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/P.macroptera_SBG1992.306B/hap2 \
+        --readFilesIn {input.r1} {input.r2} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix alignment_files/Pmac_hap2_RNAseq/mydata/P.macroptera_mbuds. \
+        --outSAMtype BAM SortedByCoordinate \
+        --quantMode GeneCounts \
+        --outSAMstrandField intronMotif 
+    """
+
+rule STAR_align_Cpal_mbud_hap1_mydata:
+  input:
+    fa=CPAL_HAP1,
+    index="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1/SA",
+    r1="RNAseq/trimmed_reads/C.paliurus_mbuds-trimmed-pair1.fastq.gz",
+    r2="RNAseq/trimmed_reads/C.paliurus_mbuds-trimmed-pair2.fastq.gz",
+  output:
+    "alignment_files/Cpal_hap1_RNAseq/mydata/C.paliurus_mbuds.Aligned.sortedByCoord.out.bam"
+  threads:
+    30
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  shell:
+    """
+    STAR --runThreadN {threads} \
+        --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap1 \
+        --readFilesIn {input.r1} {input.r2} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix alignment_files/Cpal_hap1_RNAseq/mydata/C.paliurus_mbuds. \
+        --outSAMtype BAM SortedByCoordinate \
+        --outSAMstrandField intronMotif 
+    """
+
+rule STAR_align_Cpal_mbud_hap2_mydata:
+  input:
+    fa=CPAL_HAP2,
+    index="/home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2/SA",
+    r1="RNAseq/trimmed_reads/C.paliurus_mbuds-trimmed-pair1.fastq.gz",
+    r2="RNAseq/trimmed_reads/C.paliurus_mbuds-trimmed-pair2.fastq.gz",
+  output:
+    "alignment_files/Cpal_hap2_RNAseq/mydata/C.paliurus_mbuds.Aligned.sortedByCoord.out.bam"
+  threads:
+    30
+  resources:
+    mem_mb=50000,
+    runtime=12*60
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/star.yaml"
+  shell:
+    """
+    STAR --runThreadN {threads} \
+        --genomeDir /home/jgroh/Pterocarya/denovo_assembly/scaffolded/C.paliurus_SBG1996.049A/hap2 \
+        --readFilesIn {input.r1} {input.r2} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix alignment_files/Cpal_hap2_RNAseq/mydata/C.paliurus_mbuds. \
+        --outSAMtype BAM SortedByCoordinate \
+        --outSAMstrandField intronMotif 
+    """
+
 rule STAR_align_IMNU_mydata:
   input:
     fa=IMNU_FASTA,
@@ -1448,4 +1695,26 @@ rule pi_windows:
         --output_folder "results/pixy" --output_prefix 1kb \
         --n_cores {threads} \
     """
+
+
+
+
+rule joint_call_analysis_set_PsFAFL_transcribed_region_hap2:
+  input:
+    fa=PSTE_UCD1470_HAP2,
+    fai=PSTE_UCD1470_HAP2+'.fai',
+    crams=expand("alignment_files/PSTE_UCD1470_HAP2/{mysample}.cram",mysample=PSTE_NO_DV134)+expand("/home/jgroh/Pterocarya/Geng_etal_2024_data/alignment_files/hap2/{gengsample}_sorted.cram", gengsample = GENG_STENOPTERA),
+    crai=expand("alignment_files/PSTE_UCD1470_HAP2/{mysample}.cram.crai",mysample=PSTE_NO_DV134)+expand("/home/jgroh/Pterocarya/Geng_etal_2024_data/alignment_files/hap2/{gengsample}_sorted.cram.crai", gengsample = GENG_STENOPTERA),
+  output:
+    "calls/PSTE_UCD1470_HAP2/P.stenoptera_analysis_set_FAFL_biallelic_snps.vcf.gz"
+  conda:
+    SAMTOOLS
+  shell: # filtering step requires at least one high quality heterozygote
+    """
+    bcftools mpileup -Ou -f {input.fa} -R calls/PSTE_UCD1470_HAP2/PsFAFL_UTR_CDS_coords.txt \
+        --annotate "AD,DP,INFO/AD" {input.crams} | bcftools call -m -f GQ,GP |
+        bcftools view -v snps -m2 -M2 -i 'MAC >= 2 & FMT/DP>30 & FMT/GQ>40 & GT=="0/1"' -o {output}
+    """
+
+
 

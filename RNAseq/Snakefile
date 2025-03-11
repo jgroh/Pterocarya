@@ -1,18 +1,25 @@
 import pandas as pd
 
-SAMPLES = ['DV_136', 'DV_138_F','DV_138_M', 'DV_145', 'DV_146.5', 'DV_149_F','DV_149_M', 'DV_150', 'PSTE_UCD1', 'PSTE_WS_11.01', 'PSTE_WS_2.08', 'PSTE_WS_2.10']
+PSTE_SAMPLES_TBL=pd.read_table("PsteRNAseqSamples.txt", header= None, names = ['ID'])
+PSTE_SAMPLES=PSTE_SAMPLES_TBL['ID'].tolist()
+
+PUBLISHED_SAMPLES = ['SRR26994971', 'SRR26994972', 'SRR26994973', 'SRR26994974']
+#SAMPLES = ['DV_136', 'DV_138_F','DV_138_M', 'DV_145', 'DV_146.5', 'DV_149_F','DV_149_M', 'DV_150', 'PSTE_UCD1', 'PSTE_WS_11.01', 'PSTE_WS_2.08', 'PSTE_WS_2.10']
 
 rule all:
   input:
-    expand("quants/{sample}_quant/quant.sf", sample = SAMPLES),
+    "trimmed_reads/C.paliurus_mbuds-trimmed-pair1.fastq.gz",
+    expand("/home/jgroh/Pterocarya/alignment_files/hap{n}_RNAseq/mydata/Gloc/{sample}.bam.bai", n = ['1','2'], sample = PSTE_SAMPLES),
+    expand("/home/jgroh/Pterocarya/alignment_files/hap{n}_RNAseq/published_data/Gloc/{sample}.bam.bai", n = ['1','2'], sample = PUBLISHED_SAMPLES),
+    expand("quants/{sample}_quant/quant.sf", sample = PSTE_SAMPLES),
 
 rule salmon_index:
   input:
-    "P.ste_hap2_cds.fasta"
+    "Pste_transcriptome_both_FAFL_alleles.fasta"
   output:
-    "P.ste_hap2_cds_index/sa.bin"
+    "Pste_transcriptome_both_FAFL_alleles_index/sa.bin"
   params:
-    index="P.ste_hap2_cds_index"
+    index="Pste_transcriptome_both_FAFL_alleles_index"
   conda:
     "/home/jgroh/heterodichogamy/conda_envs/salmon.yaml"
   shell:
@@ -22,12 +29,12 @@ rule salmon:
   input:
     r1="trimmed_reads/{sample}-trimmed-pair1.fastq.gz",
     r2="trimmed_reads/{sample}-trimmed-pair2.fastq.gz",
-    transcriptome="P.ste_hap2_cds.fasta",
-    index="P.ste_hap2_cds_index/sa.bin"
+    transcriptome="Pste_transcriptome_both_FAFL_alleles.fasta",
+    index="Pste_transcriptome_both_FAFL_alleles_index/sa.bin"
   output:
     "quants/{sample}_quant/quant.sf"
   params:
-    index="P.ste_hap2_cds_index"
+    index="Pste_transcriptome_both_FAFL_alleles_index"
   conda:
     "/home/jgroh/heterodichogamy/conda_envs/salmon.yaml"
   shell:
@@ -54,4 +61,58 @@ rule skewer:
     """
     skewer -m any --threads {threads} --compress --output trimmed_reads/{wildcards.sample} {input.r1} {input.r2}
     """
+
+rule focal_region_hap2_mydata:
+  input:
+    bam="/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/mydata/{sample}.Aligned.sortedByCoord.out.bam",
+    bai="/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/mydata/{sample}.Aligned.sortedByCoord.out.bam.bai",
+  output:
+    "/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/mydata/Gloc/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input.bam} Chr11:4363000-4429000 -o {output}"
+
+rule focal_region_hap1_mydata:
+  input:
+    bam="/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/{sample}.Aligned.sortedByCoord.out.bam",
+    bai="/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/{sample}.Aligned.sortedByCoord.out.bam.bai",
+  output:
+    "/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/mydata/Gloc/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input.bam} Chr11:3877202-3956000 -o {output}"
+
+rule focal_region_hap2_published_data:
+  input:
+    bam="/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam",
+    bai="/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam.bai",
+  output:
+    "/home/jgroh/Pterocarya/alignment_files/hap2_RNAseq/published_data/Gloc/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input.bam} Chr11:4363000-4429000 -o {output}"
+
+rule focal_region_hap1_published_data:
+  input:
+    bam="/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam",
+    bai="/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/published_data/{sample}.Aligned.sortedByCoord.out.bam.bai",
+  output:
+    "/home/jgroh/Pterocarya/alignment_files/hap1_RNAseq/published_data/Gloc/{sample}.bam"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools view {input.bam} Chr11:3877202-3956000 -o {output}"
+
+rule index_bam:
+  input:
+    "{file}.bam"
+  output:
+    "{file}.bam.bai"
+  conda:
+    "/home/jgroh/heterodichogamy/conda_envs/samtools_1.17.yaml"
+  shell:
+    "samtools index {input}"
 
